@@ -1,0 +1,23 @@
+#!/bin/sh
+# pre-commit: oxfmt + oxlint --fix на staged-файлах, затем повторный git add.
+set -eu
+
+if git status --short | grep --quiet '^MM'; then
+  printf '%s\n' \
+    "ERROR: есть файлы и в index, и с unstaged-правками (статус MM)." \
+    "Сделайте git add по ним или уберите unstaged-изменения, затем повторите commit." \
+    >&2
+  exit 1
+fi
+
+files=$(git diff --cached --name-only --diff-filter=ACMR || true)
+[ -n "$files" ] || exit 0
+
+printf '%s\0' $files | xargs -0 npx oxfmt --no-error-on-unmatched-pattern
+
+lint_files=$(printf '%s\n' $files | grep -E '\.(c|m)?[jt]sx?$' || true)
+if [ -n "$lint_files" ]; then
+  printf '%s\0' $lint_files | xargs -0 npx oxlint --fix
+fi
+
+git update-index --again
